@@ -12,7 +12,8 @@ concurrency:
   cancel-in-progress: true
 jobs:
   deploy:
-    if: github.event.repository.private == false
+    # The public repository is explicitly approved for demo deployment.
+    if: github.event.repository.visibility == 'public'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
