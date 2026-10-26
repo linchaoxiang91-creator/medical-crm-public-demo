@@ -29,8 +29,8 @@ jobs:
       - run: npm run build
         env:
           GITHUB_PAGES_REPO: medical-crm-public-demo
-          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
+          VITE_SUPABASE_URL: https://bkbbhpfwhlixjjizfdou.supabase.co
+          VITE_SUPABASE_ANON_KEY: sb_publishable_Bn8YG4R0FyunSqc2gB-nKA_l0lD22KV
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
