@@ -1,3 +1,4 @@
+import AgentCenter from "./AgentCenter";
 import { useEffect, useRef, useState } from "react";
 import {
   Activity,
@@ -45,6 +46,7 @@ const nav = [
   { name: "预约管理", icon: CalendarDays },
   { name: "财务管理", icon: Wallet },
   { name: "服务流程", icon: ClipboardList },
+  { name: "渠道与佣金", icon: Wallet },
 ];
 const descriptions = [
   "掌握业务全貌，让每一份托付都有回应。",
@@ -53,6 +55,7 @@ const descriptions = [
   "统筹医院预约与翻译安排，让行程井然有序。",
   "透明管理每一笔收支，清晰掌握业务收益。",
   "从第一次沟通到回国随访，全程用心陪伴。",
+  "管理合作代理、订单返点与结算进度。",
 ];
 type Modal =
   | { type: "customer"; item?: Customer }
@@ -208,7 +211,7 @@ export default function App() {
     );
     const a = document.createElement("a");
     a.href = url;
-    a.download = "和桥医疗-演示数据.json";
+    a.download = "Link Health-演示数据.json";
     a.click();
     URL.revokeObjectURL(url);
     setToast("数据已导出");
@@ -290,7 +293,7 @@ export default function App() {
             <Activity size={27} />
           </span>
           <span>
-            和桥医疗<small>日本跨境医疗服务</small>
+            Link Health<small>日本跨境医疗服务</small>
           </span>
         </a>
         <div className="workspace-label">业务工作空间</div>
@@ -403,7 +406,7 @@ export default function App() {
           </div>
           <div className="page-heading">
             <div>
-              <div className="eyebrow">和桥医疗 · 业务管理中心</div>
+              <div className="eyebrow">Link Health · 业务管理中心</div>
               <h1>
                 {page === 0 ? "工作台概览" : nav[page].name}
                 <span className="heading-dot" />
@@ -457,6 +460,7 @@ export default function App() {
               </button>
             </div>
           )}
+          {page === 6 && <AgentCenter />}
           {page === 0 && (
             <>
               <div className="welcome-strip">
@@ -932,7 +936,7 @@ export default function App() {
               虚构演示数据 · 仅保存在当前浏览器
             </span>
             <span>
-              和桥医疗 CRM <span className="version">第一版</span>
+              Link Health CRM <span className="version">第一版</span>
             </span>
           </footer>
         </main>
