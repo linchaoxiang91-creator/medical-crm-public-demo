@@ -57,10 +57,10 @@ export default function Pilot(){
    if(!configured)return;
    setBusy(true);setError("");
    try{
-     await request("/auth/v1/signup",key,{method:"POST",body:JSON.stringify({email,password})});
+     await request("/auth/v1/signup?redirect_to="+encodeURIComponent(window.location.origin+"/"),key,{method:"POST",body:JSON.stringify({email,password})});
      setPassword("");setRegister(false);
      setError("注册申请已提交。请按邮件提示验证邮箱，等待管理员审核后再登录。");
-   }catch(e){setError(e instanceof Error?e.message:"注册失败");}finally{setBusy(false);}
+   }catch(e){setError(e instanceof Error && /429|rate limit/i.test(e.message)?"注册请求过于频繁，请勿重复提交。若已收到确认邮件，请直接完成邮箱验证；稍后再试。":e instanceof Error?e.message:"注册失败");}finally{setBusy(false);}
  }
  async function refresh(){setBusy(true);try{await load(token,userId);setError("");}catch(e){setError(String(e));}finally{setBusy(false);}}
  async function add(){
