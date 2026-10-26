@@ -26,8 +26,10 @@ export default function Pilot(){
  async function request<T>(path:string,access:string,options:RequestInit={}):Promise<T>{
    const res=await fetch(url+path,{...options,headers:{"apikey":key,"Authorization":"Bearer "+access,"Content-Type":"application/json",...options.headers}});
    if(!res.ok){let msg="请求失败："+res.status;try{const body=await res.json() as {message?:string;error_description?:string};msg=body.message||body.error_description||msg;}catch{}throw new Error(msg);}
-   if(res.status===204)return null as T;
-   return res.json() as Promise<T>;
+   // Minimal-return inserts can succeed with HTTP 201 and an empty body.
+   if(res.status===204 || res.headers.get("content-length")==="0")return null as T;
+   const body=await res.text();
+   return body ? JSON.parse(body) as T : null as T;
  }
  async function load(access:string,id:string){
    const [profiles,clients]=await Promise.all([
