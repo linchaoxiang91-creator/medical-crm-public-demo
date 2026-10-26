@@ -1,0 +1,23 @@
+name: Validate Link Health V2
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [feat/link-health-v2-agents]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+        env:
+          GITHUB_PAGES_REPO: medical-crm-public-demo
+# No deploy step: validation only.
