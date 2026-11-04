@@ -30,7 +30,7 @@ function shortDate(d:string){return d?d.slice(0,10):"—";}
 export default function Pilot(){
  const [token,setToken]=useState("");const [uid,setUid]=useState("");
  const [email,setEmail]=useState("");const [password,setPassword]=useState("");
- const [signup,setSignup]=useState(false);const [signupRole,setSignupRole]=useState<"agent"|"patient">("agent");
+ const [signup,setSignup]=useState(false);
  const [profile,setProfile]=useState<Profile|null>(null);
  const [profiles,setProfiles]=useState<Profile[]>([]);
  const [cases,setCases]=useState<CaseRow[]>([]);const [commissions,setCommissions]=useState<Commission[]>([]);
@@ -64,11 +64,11 @@ export default function Pilot(){
   catch(err){setError(String(err instanceof Error?err.message:err));}finally{setBusy(false);}
  }
  async function register(e:FormEvent){e.preventDefault();setBusy(true);setError("");setNotice("");
-  try{await api("/auth/v1/signup",apikey,{method:"POST",body:JSON.stringify({email,password})});setSignup(false);setPassword("");setNotice("注册申请已发出。请先验证邮箱，再联系管理员审批身份。申请类型："+(signupRole==="patient"?"客户":"代理")+"。");}
+  try{await api("/auth/v1/signup",apikey,{method:"POST",body:JSON.stringify({email,password})});setSignup(false);setPassword("");setNotice("申请已提交。请验证邮箱，账户开通后即可登录。");}
   catch(err){setError(String(err));}finally{setBusy(false);}
  }
  useEffect(()=>{
-  document.title="LINK HEALTH · 统一医疗服务工作台";
+  document.title="LINK HEALTH · 健康服务中心";
   const ref=sessionStorage.getItem("lh_seed_refresh");
   if(!enabled||!ref)return;
   let cancelled=false;
@@ -111,21 +111,21 @@ export default function Pilot(){
  const nameOf=(id:string|null)=>profiles.find(p=>p.user_id===id)?.display_name??(id?"已分配":"未分配");
  return <main className="lh-seed" style={{maxWidth:1140,margin:"0 auto",padding:"28px 15px 60px",color:"#183653",lineHeight:1.65}}>
   <header style={{display:"flex",flexWrap:"wrap",justifyContent:"space-between",gap:14,alignItems:"center",marginBottom:26}}>
-   <div><div style={{color:"#168778",letterSpacing:2,fontSize:12}}>LINK HEALTH · SEED EDITION</div><h1 style={{margin:"5px 0 0",fontSize:"clamp(24px,4vw,36px)"}}>统一医疗服务工作台</h1><p style={{margin:"5px 0",color:"#627986"}}>个性化精准医疗与主动健康管理</p></div>
-   {profile&&<div><strong>{profile.display_name} · {role==="admin"?"管理员":role==="agent"?"合作代理":"客户"}</strong><br/><button type="button" style={{...btn,background:"#456779",marginTop:8}} onClick={logout}>退出登录</button></div>}
+   <div><div style={{color:"#168778",letterSpacing:2,fontSize:12}}>LINK HEALTH</div><h1 style={{margin:"5px 0 0",fontSize:"clamp(24px,4vw,36px)"}}>{role==="admin"?"医疗运营管理":role==="agent"?"项目服务管理":role==="patient"?"我的健康中心":"健康服务中心"}</h1><p style={{margin:"5px 0",color:"#627986"}}>个性化精准医疗与主动健康管理</p></div>
+   {profile&&<div><strong>{profile.display_name}</strong><br/><button type="button" style={{...btn,background:"#456779",marginTop:8}} onClick={logout}>退出登录</button></div>}
   </header>
   {error&&<div role="alert" style={{...box,borderColor:"#d16b69",color:"#a33131"}}>{error}</div>}
   {notice&&<div role="status" style={{...box,borderColor:"#9acbbc",color:"#166f65"}}>{notice}</div>}
   {!enabled?<section style={box}>尚未检测到 CRM 数据库配置。请检查站点部署环境变量。</section>:
    !profile?<section style={{...box,maxWidth:500,margin:"25px auto",padding:30}}>
-    <h2 style={{marginTop:0}}>{signup?"申请使用种子期系统":"账号登录"}</h2><p style={{color:"#607989"}}>{signup?"申请后需验证邮箱，并经管理员审批。":"统一入口：管理员、代理与客户使用各自账号登录。"}</p>
+    <h2 style={{marginTop:0}}>{signup?"申请账户":"账号登录"}</h2><p style={{color:"#607989"}}>{signup?"提交申请后请验证邮箱，账户审核通过即可使用。":"请登录以查看您的专属服务信息。"}</p>
     <form onSubmit={signup?register:login} style={{display:"grid",gap:14}}>
      <label style={label}>电子邮箱<input style={inp} type="email" required autoComplete="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="example@email.com"/></label>
      <label style={label}>密码（至少8位）<input style={inp} type="password" minLength={8} required autoComplete={signup?"new-password":"current-password"} value={password} onChange={e=>setPassword(e.target.value)}/></label>
-     {signup&&<label style={label}>申请身份<select style={inp} value={signupRole} onChange={e=>setSignupRole(e.target.value as "agent"|"patient")}><option value="agent">代理伙伴</option><option value="patient">客户</option></select></label>}
+     
      <button type="submit" style={btn} disabled={busy}>{busy?"正在处理…":signup?"注册并验证邮箱":"登录工作台"}</button>
-    </form><button type="button" style={{border:0,background:"none",color:"#0b7f79",marginTop:16,cursor:"pointer"}} onClick={()=>{setSignup(!signup);setError("");}}>{signup?"已有账号？登录":"申请客户或代理账号 →"}</button>
-    <p style={{fontSize:12,color:"#70828a",marginTop:22}}>目前为少量用户种子测试。上传真实病历前须完成隐私授权与数据安全审核。</p>
+    </form><button type="button" style={{border:0,background:"none",color:"#0b7f79",marginTop:16,cursor:"pointer"}} onClick={()=>{setSignup(!signup);setError("");}}>{signup?"已有账号？登录":"申请账户 →"}</button>
+    <p style={{fontSize:12,color:"#70828a",marginTop:22}}>医疗档案仅向通过身份审核的本人开放，并采用权限保护。</p>
    </section>:
    <>
    <div style={{...box,background:"#ecf6f4"}}><strong>账户权限：</strong>{role==="admin"?"管理全部客户进度、代理分润和医疗档案。":role==="agent"?"仅查看本人报备或分配的客户服务节点及本人分润，不可查看病历、内部成本。":"仅查看与本人账号绑定的服务进度、医疗报告及已确认的健康建议。"}
@@ -187,6 +187,6 @@ export default function Pilot(){
     </div><h3 style={{marginTop:26}}>已登记账户</h3>{profiles.map(p=><p key={p.user_id} style={{margin:"6px 0",fontSize:14}}>{p.display_name} · {p.role==="admin"?"管理员":p.role==="agent"?"代理":"客户"} · {p.active?"已启用":"待审核"}</p>)}<p style={{fontSize:12,color:"#71848c"}}>管理员账号不通过此界面授予；客户档案必须单独绑定后才能查看。</p>
    </section>}
    </>}
-  <footer style={{marginTop:45,fontSize:12,color:"#809198",textAlign:"center"}}>LINK HEALTH · 种子期测试系统 · 不用于未经审核的医疗数据存储</footer>
+  <footer style={{marginTop:45,fontSize:12,color:"#809198",textAlign:"center"}}>LINK HEALTH · 个性化精准医疗与主动健康管理</footer>
  </main>;
 }
