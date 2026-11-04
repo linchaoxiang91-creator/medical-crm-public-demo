@@ -14,6 +14,7 @@ const enabled=Boolean(endpoint.startsWith("https://")&&apikey);
 const stages=["咨询中","资料整理","医学评估","预约确认","医疗服务中","后续随访","服务完成"];
 const categories=["医生建议","饮食饮水","运动睡眠","药物及补充剂","复诊随访"];
 const money=(n:number)=>"¥"+Number(n||0).toLocaleString("zh-CN",{maximumFractionDigits:2});
+let seedRefreshPromise:Promise<AuthReply>|null=null;
 const box:React.CSSProperties={background:"#fff",border:"1px solid #e0e9e8",padding:20,borderRadius:15,marginBottom:17};
 const inp:React.CSSProperties={width:"100%",padding:"11px 12px",border:"1px solid #c8d9d8",borderRadius:9,background:"#fff",color:"#183652",fontSize:15,boxSizing:"border-box"};
 const btn:React.CSSProperties={padding:"11px 17px",border:0,borderRadius:9,background:"#123b5b",color:"#fff",fontWeight:600,cursor:"pointer"};
@@ -66,10 +67,14 @@ export default function Pilot(){
   try{await api("/auth/v1/signup",apikey,{method:"POST",body:JSON.stringify({email,password})});setSignup(false);setPassword("");setNotice("注册申请已发出。请先验证邮箱，再联系管理员审批身份。申请类型："+(signupRole==="patient"?"客户":"代理")+"。");}
   catch(err){setError(String(err));}finally{setBusy(false);}
  }
- useEffect(()=>{document.title="LINK HEALTH · 统一医疗服务工作台";const ref=sessionStorage.getItem("lh_seed_refresh");if(!enabled||!ref)return;
+ useEffect(()=>{
+  document.title="LINK HEALTH · 统一医疗服务工作台";
+  const ref=sessionStorage.getItem("lh_seed_refresh");
+  if(!enabled||!ref)return;
   let cancelled=false;
-  (async()=>{try{const a=await api<AuthReply>("/auth/v1/token?grant_type=refresh_token",apikey,{method:"POST",body:JSON.stringify({refresh_token:ref})});if(!cancelled){await load(a.access_token,a.user.id);sessionStorage.setItem("lh_seed_refresh",a.refresh_token);}}catch{sessionStorage.removeItem("lh_seed_refresh");}})();
-  return()=>{cancelled=true};
+  if(!seedRefreshPromise)seedRefreshPromise=api<AuthReply>("/auth/v1/token?grant_type=refresh_token",apikey,{method:"POST",body:JSON.stringify({refresh_token:ref})});
+  void seedRefreshPromise.then(async a=>{if(!cancelled){await load(a.access_token,a.user.id);sessionStorage.setItem("lh_seed_refresh",a.refresh_token);}}).catch(()=>{if(!cancelled)sessionStorage.removeItem("lh_seed_refresh");});
+  return()=>{cancelled=true;};
  },[]);
  function logout(){setProfile(null);setToken("");setUid("");setCases([]);setReports([]);setPlans([]);setCommissions([]);setProfiles([]);sessionStorage.removeItem("lh_seed_refresh");}
  async function work(task:()=>Promise<void>,success="已保存"){setBusy(true);setError("");setNotice("");try{await task();await load(token,uid);setNotice(success);}catch(e){setError(e instanceof Error?e.message:String(e));}finally{setBusy(false);}}
