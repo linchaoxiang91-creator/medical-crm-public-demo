@@ -31,6 +31,7 @@ export default function Pilot(){
  const [token,setToken]=useState("");const [uid,setUid]=useState("");
  const [email,setEmail]=useState("");const [password,setPassword]=useState("");
  const [signup,setSignup]=useState(false);
+ const [signupKind,setSignupKind]=useState<"patient"|"agent">("patient");
  const [profile,setProfile]=useState<Profile|null>(null);
  const [profiles,setProfiles]=useState<Profile[]>([]);
  const [cases,setCases]=useState<CaseRow[]>([]);const [commissions,setCommissions]=useState<Commission[]>([]);
@@ -48,7 +49,8 @@ export default function Pilot(){
  const role=profile?.role;
  async function load(access:string,id:string){
   const self=await api<Profile[]>("/rest/v1/pilot_profiles?select=user_id,role,display_name,active&user_id=eq."+encodeURIComponent(id),access);
-  if(!self[0]?.active)throw new Error("该账号尚未审核启用。请先完成邮箱验证，并联系管理员开通身份。");
+  if(!self[0])throw new Error("账户资料暂不可用，请联系管理员。");
+  if(!self[0].active)throw new Error("合作伙伴账户正在审核，请等待管理员启用后再登录。");
   const [c,cm,r,p]=await Promise.all([
    api<CaseRow[]>("/rest/v1/lh_cases?select=*&order=created_at.desc",access),
    api<Commission[]>("/rest/v1/lh_commissions?select=*&order=updated_at.desc",access),
@@ -64,7 +66,7 @@ export default function Pilot(){
   catch(err){setError(String(err instanceof Error?err.message:err));}finally{setBusy(false);}
  }
  async function register(e:FormEvent){e.preventDefault();setBusy(true);setError("");setNotice("");
-  try{await api("/auth/v1/signup",apikey,{method:"POST",body:JSON.stringify({email,password})});setSignup(false);setPassword("");setNotice("申请已提交。请验证邮箱，账户开通后即可登录。");}
+  try{await api("/auth/v1/signup",apikey,{method:"POST",body:JSON.stringify({email,password,data:{account_type:signupKind}})});setSignup(false);setPassword("");setNotice(signupKind==="patient"?"注册已提交。请查收验证邮件，确认邮箱后即可直接登录，无需人工审核。":"合作伙伴申请已提交。请验证邮箱并等待管理员审核开通。");}
   catch(err){setError(String(err));}finally{setBusy(false);}
  }
  useEffect(()=>{
@@ -118,14 +120,15 @@ export default function Pilot(){
   {notice&&<div role="status" style={{...box,borderColor:"#9acbbc",color:"#166f65"}}>{notice}</div>}
   {!enabled?<section style={box}>尚未检测到 CRM 数据库配置。请检查站点部署环境变量。</section>:
    !profile?<section style={{...box,maxWidth:500,margin:"25px auto",padding:30}}>
-    <h2 style={{marginTop:0}}>{signup?"申请账户":"账号登录"}</h2><p style={{color:"#607989"}}>{signup?"提交申请后请验证邮箱，账户审核通过即可使用。":"请登录以查看您的专属服务信息。"}</p>
+    <h2 style={{marginTop:0}}>{signup?"注册账号":"账号登录"}</h2><p style={{color:"#607989"}}>{signup?"普通客户验证邮箱后即可进入个人健康中心；合作伙伴需要管理员审核。":"请登录以查看您的专属服务信息。"}</p>
     <form onSubmit={signup?register:login} style={{display:"grid",gap:14}}>
+     {signup&&<label style={label}>注册用途<select style={inp} value={signupKind} onChange={e=>setSignupKind(e.target.value as "patient"|"agent")}><option value="patient">个人健康服务（无需审核）</option><option value="agent">合作伙伴申请（需要审核）</option></select></label>}
      <label style={label}>电子邮箱<input style={inp} type="email" required autoComplete="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="example@email.com"/></label>
      <label style={label}>密码（至少8位）<input style={inp} type="password" minLength={8} required autoComplete={signup?"new-password":"current-password"} value={password} onChange={e=>setPassword(e.target.value)}/></label>
      
-     <button type="submit" style={btn} disabled={busy}>{busy?"正在处理…":signup?"注册并验证邮箱":"登录工作台"}</button>
-    </form><button type="button" style={{border:0,background:"none",color:"#0b7f79",marginTop:16,cursor:"pointer"}} onClick={()=>{setSignup(!signup);setError("");}}>{signup?"已有账号？登录":"申请账户 →"}</button>
-    <p style={{fontSize:12,color:"#70828a",marginTop:22}}>医疗档案仅向通过身份审核的本人开放，并采用权限保护。</p>
+     <button type="submit" style={btn} disabled={busy}>{busy?"正在处理…":signup?"注册并验证邮箱":"登录"}</button>
+    </form><button type="button" style={{border:0,background:"none",color:"#0b7f79",marginTop:16,cursor:"pointer"}} onClick={()=>{setSignup(!signup);setError("");}}>{signup?"已有账号？登录":"注册账号 →"}</button>
+    <p style={{fontSize:12,color:"#70828a",marginTop:22}}>普通客户验证邮箱后即可登录；医疗档案须由管理员绑定到本人账户后方可查看。</p>
    </section>:
    <>
    <div style={{...box,background:"#ecf6f4"}}><strong>账户权限：</strong>{role==="admin"?"管理全部客户进度、代理分润和医疗档案。":role==="agent"?"仅查看本人报备或分配的客户服务节点及本人分润，不可查看病历、内部成本。":"仅查看与本人账号绑定的服务进度、医疗报告及已确认的健康建议。"}
@@ -144,7 +147,7 @@ export default function Pilot(){
      <button type="button" style={btn} disabled={busy||!newCode.trim()} onClick={()=>void addCase()}>保存备案</button>
     </div></section>}
     <section style={box}><h2 style={{marginTop:0}}>{role==="patient"?"我的服务进度":"客户服务台账"}</h2>
-     {!cases.length?<p>暂无已绑定的服务项目。客户需联系管理员绑定已审核账号。</p>:
+     {!cases.length?<p>暂无已绑定的服务项目。您已可以登录健康中心；医疗档案与报告需要由工作人员核实身份并单独绑定后显示。</p>:
      <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",minWidth:role==="patient"?500:780,fontSize:14}}><thead><tr style={{textAlign:"left",background:"#edf5f4"}}><th>客户代号</th><th>服务项目</th><th>进度节点</th>{role!=="patient"&&<th>代理</th>}{role!=="patient"&&<th>本人分润</th>}{role==="admin"&&<th>客户账号绑定</th>}</tr></thead><tbody>
       {cases.map(c=>{const cm=commissionFor(c);return <tr key={c.id} style={{borderBottom:"1px solid #e2e9e8"}}>
        <td style={{padding:"12px 7px",fontWeight:700}}>{c.client_code}</td><td style={{padding:"12px 7px"}}>{c.project}</td>
@@ -179,10 +182,10 @@ export default function Pilot(){
      <label style={{display:"flex",alignItems:"center",gap:9,margin:"12px 0"}}><input type="checkbox" checked={planVisible} onChange={e=>setPlanVisible(e.target.checked)}/>医生核对完成，向绑定客户发布</label><button type="button" style={btn} disabled={busy||!planTitle.trim()||!planText.trim()} onClick={()=>void addPlan()}>保存健康计划</button></div>}
     </>}
    </section>}
-   {tab==="members"&&role==="admin"&&<section style={box}><h2 style={{marginTop:0}}>代理与客户账号审批</h2><p>对方先在本页面申请账号并验证邮箱。管理员审核确认后，按邮箱启用相应身份。</p><div style={group}>
+   {tab==="members"&&role==="admin"&&<section style={box}><h2 style={{marginTop:0}}>合作伙伴账号审核</h2><p>普通客户完成邮箱验证后自动启用，无需在这里审核；合作伙伴需完成邮箱验证后，由管理员确认身份并开通。</p><div style={group}>
      <label style={label}>已验证邮箱<input style={inp} type="email" value={approveEmail} onChange={e=>setApproveEmail(e.target.value)}/></label>
      <label style={label}>显示名称<input style={inp} maxLength={80} value={approveName} onChange={e=>setApproveName(e.target.value)}/></label>
-     <label style={label}>审核身份<select style={inp} value={approveRole} onChange={e=>setApproveRole(e.target.value as "agent"|"patient")}><option value="agent">代理</option><option value="patient">客户</option></select></label>
+     <label style={label}>审核身份<select style={inp} value={approveRole} onChange={e=>setApproveRole(e.target.value as "agent"|"patient")}><option value="agent">合作伙伴</option><option value="patient">客户（仅用于历史账户修正）</option></select></label>
      <button type="button" style={btn} disabled={busy||!approveEmail.trim()||!approveName.trim()} onClick={()=>void approve()}>审核开通</button>
     </div><h3 style={{marginTop:26}}>已登记账户</h3>{profiles.map(p=><p key={p.user_id} style={{margin:"6px 0",fontSize:14}}>{p.display_name} · {p.role==="admin"?"管理员":p.role==="agent"?"代理":"客户"} · {p.active?"已启用":"待审核"}</p>)}<p style={{fontSize:12,color:"#71848c"}}>管理员账号不通过此界面授予；客户档案必须单独绑定后才能查看。</p>
    </section>}
