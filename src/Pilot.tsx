@@ -31,7 +31,6 @@ export default function Pilot(){
  const [token,setToken]=useState("");const [uid,setUid]=useState("");
  const [email,setEmail]=useState("");const [password,setPassword]=useState("");
  const [signup,setSignup]=useState(false);
- const [signupKind,setSignupKind]=useState<"patient"|"agent">("patient");
  const [agentCreateEmail,setAgentCreateEmail]=useState("");
  const [agentCreateName,setAgentCreateName]=useState("");
  const [agentCredentials,setAgentCredentials]=useState<{email:string;name:string;password:string}|null>(null);
