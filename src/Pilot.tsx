@@ -32,6 +32,10 @@ export default function Pilot(){
  const [email,setEmail]=useState("");const [password,setPassword]=useState("");
  const [signup,setSignup]=useState(false);
  const [signupKind,setSignupKind]=useState<"patient"|"agent">("patient");
+ const [agentCreateEmail,setAgentCreateEmail]=useState("");
+ const [agentCreateName,setAgentCreateName]=useState("");
+ const [agentCredentials,setAgentCredentials]=useState<{email:string;name:string;password:string}|null>(null);
+ const [currentNewPassword,setCurrentNewPassword]=useState("");
  const [profile,setProfile]=useState<Profile|null>(null);
  const [profiles,setProfiles]=useState<Profile[]>([]);
  const [cases,setCases]=useState<CaseRow[]>([]);const [commissions,setCommissions]=useState<Commission[]>([]);
@@ -66,7 +70,18 @@ export default function Pilot(){
   catch(err){setError(String(err instanceof Error?err.message:err));}finally{setBusy(false);}
  }
  async function register(e:FormEvent){e.preventDefault();setBusy(true);setError("");setNotice("");
-  try{await api("/auth/v1/signup",apikey,{method:"POST",body:JSON.stringify({email,password,data:{account_type:signupKind}})});setSignup(false);setPassword("");setNotice(signupKind==="patient"?"注册已提交。请查收验证邮件，确认邮箱后即可直接登录，无需人工审核。":"合作伙伴申请已提交。请验证邮箱并等待管理员审核开通。");}
+  try{
+   const a=await api<AuthReply & {user?:{id:string}} >("/auth/v1/signup",apikey,{method:"POST",body:JSON.stringify({email,password,data:{account_type:"patient"}})});
+   setSignup(false);
+   if(a.access_token&&a.user?.id){
+     await load(a.access_token,a.user.id);
+     if(a.refresh_token)sessionStorage.setItem("lh_seed_refresh",a.refresh_token);
+     setNotice("注册成功，已进入个人健康中心。");
+   }else{
+     setNotice("注册资料已提交。当前后台仍要求邮箱验证，请先完成邮件确认后登录；管理员无需审核。");
+   }
+   setPassword("");
+  }
   catch(err){setError(String(err));}finally{setBusy(false);}
  }
  useEffect(()=>{
@@ -89,6 +104,33 @@ export default function Pilot(){
   await api("/rest/v1/rpc/lh_approve_signup",token,{method:"POST",body:JSON.stringify({p_email:approveEmail.trim(),p_role:approveRole,p_display_name:approveName.trim()})});
   setApproveEmail("");setApproveName("");
  },"账号审核已完成。请提醒对方重新登录。");}
+ async function createAgent(e:FormEvent){
+  e.preventDefault();
+  if(!agentCreateEmail.trim()||!agentCreateName.trim())return;
+  setBusy(true);setError("");setNotice("");setAgentCredentials(null);
+  try{
+   const res=await fetch(endpoint+"/functions/v1/admin-create-agent",{
+     method:"POST",headers:{"Authorization":"Bearer "+token,apikey,"Content-Type":"application/json"},
+     body:JSON.stringify({email:agentCreateEmail.trim(),name:agentCreateName.trim()})
+   });
+   const data=await res.json() as {error?:string,email?:string,name?:string,password?:string};
+   if(!res.ok||!data.password||!data.email||!data.name)throw new Error(data.error||"创建失败，请联系管理员");
+   setAgentCredentials({email:data.email,name:data.name,password:data.password});
+   setAgentCreateEmail("");setAgentCreateName("");
+   await load(token,uid);
+   setNotice("合作伙伴账号已开通，请安全发送初始密码，提醒对方立即修改。");
+  }catch(e){setError(e instanceof Error?e.message:String(e))}
+  finally{setBusy(false)}
+ }
+ async function changePassword(e:FormEvent){
+  e.preventDefault();if(currentNewPassword.length<12){setError("新密码建议至少12位");return}
+  setBusy(true);setError("");setNotice("");
+  try{
+   await api("/auth/v1/user",token,{method:"PUT",body:JSON.stringify({password:currentNewPassword})});
+   setCurrentNewPassword("");setNotice("密码已修改，请妥善保管。");
+  }catch(e){setError(e instanceof Error?e.message:String(e))}
+  finally{setBusy(false)}
+ }
  async function upload(){if(!activeCase||!reportTitle.trim()||!reportFile)return;
   if(!["application/pdf","image/png","image/jpeg"].includes(reportFile.type)||reportFile.size>10*1024*1024){setError("测试附件仅支持 PDF/JPG/PNG，单份不超过10MB。");return;}
   await work(async()=>{
@@ -120,23 +162,24 @@ export default function Pilot(){
   {notice&&<div role="status" style={{...box,borderColor:"#9acbbc",color:"#166f65"}}>{notice}</div>}
   {!enabled?<section style={box}>尚未检测到 CRM 数据库配置。请检查站点部署环境变量。</section>:
    !profile?<section style={{...box,maxWidth:500,margin:"25px auto",padding:30}}>
-    <h2 style={{marginTop:0}}>{signup?"注册账号":"账号登录"}</h2><p style={{color:"#607989"}}>{signup?"普通客户验证邮箱后即可进入个人健康中心；合作伙伴需要管理员审核。":"请登录以查看您的专属服务信息。"}</p>
+    <h2 style={{marginTop:0}}>{signup?"注册账号":"账号登录"}</h2><p style={{color:"#607989"}}>{signup?"客户可以直接注册；后台开放免邮箱验证后可立即登录。合作伙伴由管理员统一创建账号。":"请登录以查看您的专属服务信息。"}</p>
     <form onSubmit={signup?register:login} style={{display:"grid",gap:14}}>
-     {signup&&<label style={label}>注册用途<select style={inp} value={signupKind} onChange={e=>setSignupKind(e.target.value as "patient"|"agent")}><option value="patient">个人健康服务（无需审核）</option><option value="agent">合作伙伴申请（需要审核）</option></select></label>}
+     
      <label style={label}>电子邮箱<input style={inp} type="email" required autoComplete="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="example@email.com"/></label>
      <label style={label}>密码（至少8位）<input style={inp} type="password" minLength={8} required autoComplete={signup?"new-password":"current-password"} value={password} onChange={e=>setPassword(e.target.value)}/></label>
      
-     <button type="submit" style={btn} disabled={busy}>{busy?"正在处理…":signup?"注册并验证邮箱":"登录"}</button>
+     <button type="submit" style={btn} disabled={busy}>{busy?"正在处理…":signup?"注册并进入健康中心":"登录"}</button>
     </form><button type="button" style={{border:0,background:"none",color:"#0b7f79",marginTop:16,cursor:"pointer"}} onClick={()=>{setSignup(!signup);setError("");}}>{signup?"已有账号？登录":"注册账号 →"}</button>
-    <p style={{fontSize:12,color:"#70828a",marginTop:22}}>普通客户验证邮箱后即可登录；医疗档案须由管理员绑定到本人账户后方可查看。</p>
+    <p style={{fontSize:12,color:"#70828a",marginTop:22}}>注册后即可使用个人中心（后台尚未关闭验证时仍须邮件确认）；医疗档案须先由管理员核对身份并绑定。</p>
    </section>:
    <>
    <div style={{...box,background:"#ecf6f4"}}><strong>账户权限：</strong>{role==="admin"?"管理全部客户进度、代理分润和医疗档案。":role==="agent"?"仅查看本人报备或分配的客户服务节点及本人分润，不可查看病历、内部成本。":"仅查看与本人账号绑定的服务进度、医疗报告及已确认的健康建议。"}
    <p style={{margin:"7px 0 0",fontSize:12,color:"#53727b"}}>种子期请使用客户代号与虚构报告测试；正式上传真实病历前需完成数据保护与授权检查。</p></div>
+   {role==="agent"&&<details style={{...box,background:"#f6faf9"}}><summary style={{cursor:"pointer",fontWeight:600}}>修改初始密码（首次登录后请立即修改）</summary><form onSubmit={changePassword} style={{display:"flex",flexWrap:"wrap",alignItems:"end",gap:10,marginTop:15}}><label style={label}>新密码（至少12位）<input style={inp} type="password" minLength={12} required autoComplete="new-password" value={currentNewPassword} onChange={e=>setCurrentNewPassword(e.target.value)}/></label><button type="submit" style={btn} disabled={busy||currentNewPassword.length<12}>保存新密码</button></form></details>}
    <div style={{display:"flex",flexWrap:"wrap",gap:9,marginBottom:20}}>
     <button type="button" style={{...btn,background:tab==="cases"?"#123b5b":"#6d8490"}} onClick={()=>setTab("cases")}>{role==="patient"?"我的服务进度":"客户与进度"} ({cases.length})</button>
     {role!=="agent"&&<button type="button" style={{...btn,background:tab==="medical"?"#123b5b":"#6d8490"}} onClick={()=>setTab("medical")}>医疗报告与健康计划</button>}
-    {role==="admin"&&<button type="button" style={{...btn,background:tab==="members"?"#123b5b":"#6d8490"}} onClick={()=>setTab("members")}>账号审批与权限</button>}
+    {role==="admin"&&<button type="button" style={{...btn,background:tab==="members"?"#123b5b":"#6d8490"}} onClick={()=>setTab("members")}>合作伙伴账号管理</button>}
     <button type="button" style={{...btn,background:"#168679"}} onClick={()=>void work(async()=>{},"已刷新")}>刷新</button>
    </div>
    {tab==="cases"&&<>
@@ -182,12 +225,30 @@ export default function Pilot(){
      <label style={{display:"flex",alignItems:"center",gap:9,margin:"12px 0"}}><input type="checkbox" checked={planVisible} onChange={e=>setPlanVisible(e.target.checked)}/>医生核对完成，向绑定客户发布</label><button type="button" style={btn} disabled={busy||!planTitle.trim()||!planText.trim()} onClick={()=>void addPlan()}>保存健康计划</button></div>}
     </>}
    </section>}
-   {tab==="members"&&role==="admin"&&<section style={box}><h2 style={{marginTop:0}}>合作伙伴账号审核</h2><p>普通客户完成邮箱验证后自动启用，无需在这里审核；合作伙伴需完成邮箱验证后，由管理员确认身份并开通。</p><div style={group}>
+   {tab==="members"&&role==="admin"&&<section style={box}>
+    <h2 style={{marginTop:0}}>创建合作伙伴账号</h2>
+    <p style={{color:"#5b7580"}}>管理员填写姓名与邮箱，系统生成高强度初始密码并直接开通合作伙伴权限。首次登录请立即修改密码。</p>
+    <form onSubmit={createAgent} style={{...group,marginBottom:12}}>
+     <label style={label}>合作伙伴邮箱<input type="email" required style={inp} value={agentCreateEmail} onChange={e=>setAgentCreateEmail(e.target.value)} placeholder="partner@example.com"/></label>
+     <label style={label}>姓名／显示名称<input required maxLength={80} style={inp} value={agentCreateName} onChange={e=>setAgentCreateName(e.target.value)} placeholder="例如：合作顾问"/></label>
+     <button type="submit" disabled={busy||!agentCreateName.trim()||!agentCreateEmail.trim()} style={btn}>{busy?"正在创建…":"生成账号与初始密码"}</button>
+    </form>
+    {agentCredentials&&<div style={{...box,background:"#eef9f5",borderColor:"#7fc7b6",overflowWrap:"anywhere"}}>
+      <strong>账号创建成功｜请立即复制并安全发送</strong>
+      <p>姓名：{agentCredentials.name}</p><p>邮箱：{agentCredentials.email}</p>
+      <p>初始密码：<code style={{fontSize:15,fontWeight:700}}>{agentCredentials.password}</code></p>
+      <button type="button" style={{...btn,background:"#177d73"}} onClick={()=>void navigator.clipboard?.writeText("LINK HEALTH 合作伙伴登录\n网址：https://crm.91linker.com/\n邮箱："+agentCredentials.email+"\n初始密码："+agentCredentials.password+"\n首次登录请立即修改密码。")}>复制账号信息</button>
+      <button type="button" style={{...btn,background:"#6b828a",marginLeft:8}} onClick={()=>setAgentCredentials(null)}>清除页面上的密码</button>
+      <p style={{fontSize:12,color:"#5b7580",marginTop:10}}>密码不写入CRM业务表，只显示当前页面；请通过私密渠道单独发送，避免群聊公开。</p>
+    </div>}
+    <details style={{marginTop:18}}><summary style={{cursor:"pointer",color:"#527780"}}>处理此前已注册的待审核合作伙伴（旧流程）</summary>
+    <p>仅适用于以前自行注册且已验证邮箱的合作伙伴。新合作伙伴请使用上方创建账号。</p>
+    <div style={group}>
      <label style={label}>已验证邮箱<input style={inp} type="email" value={approveEmail} onChange={e=>setApproveEmail(e.target.value)}/></label>
      <label style={label}>显示名称<input style={inp} maxLength={80} value={approveName} onChange={e=>setApproveName(e.target.value)}/></label>
      <label style={label}>审核身份<select style={inp} value={approveRole} onChange={e=>setApproveRole(e.target.value as "agent"|"patient")}><option value="agent">合作伙伴</option><option value="patient">客户（仅用于历史账户修正）</option></select></label>
-     <button type="button" style={btn} disabled={busy||!approveEmail.trim()||!approveName.trim()} onClick={()=>void approve()}>审核开通</button>
-    </div><h3 style={{marginTop:26}}>已登记账户</h3>{profiles.map(p=><p key={p.user_id} style={{margin:"6px 0",fontSize:14}}>{p.display_name} · {p.role==="admin"?"管理员":p.role==="agent"?"代理":"客户"} · {p.active?"已启用":"待审核"}</p>)}<p style={{fontSize:12,color:"#71848c"}}>管理员账号不通过此界面授予；客户档案必须单独绑定后才能查看。</p>
+     <button type="button" style={btn} disabled={busy||!approveEmail.trim()||!approveName.trim()} onClick={()=>void approve()}>审核旧账号</button>
+    </div></details><h3 style={{marginTop:26}}>已登记账户</h3>{profiles.map(p=><p key={p.user_id} style={{margin:"6px 0",fontSize:14}}>{p.display_name} · {p.role==="admin"?"管理员":p.role==="agent"?"代理":"客户"} · {p.active?"已启用":"待审核"}</p>)}<p style={{fontSize:12,color:"#71848c"}}>管理员账号不通过此界面授予；客户档案必须单独绑定后才能查看。</p>
    </section>}
    </>}
   <footer style={{marginTop:45,fontSize:12,color:"#809198",textAlign:"center"}}>LINK HEALTH · 个性化精准医疗与主动健康管理</footer>
