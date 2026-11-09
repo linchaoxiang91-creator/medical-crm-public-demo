@@ -28,7 +28,7 @@ async function api<T>(path:string,bearer:string,options:RequestInit={}):Promise<
    const code=details.error_code||"";
    const description=details.msg||details.message||"";
    if(res.status===429||code==="over_email_send_rate_limit"){
-     const wait=description.match(/after\\s+(\\d+)\\s+seconds?/i)?.[1];
+     const wait=description.match(/after\s+(\d+)\s+seconds?/i)?.[1];
      throw new Error("验证码邮件发送太频繁。"+(wait?"请在"+wait+"秒后再试。":"请稍后再试。")+"如果已经注册，请勿重复注册；先到邮箱查找验证邮件。");
    }
    if(code==="email_not_confirmed")throw new Error("邮箱尚未验证。请在邮箱收件箱或垃圾邮件中找到确认邮件，点击链接后返回登录。");
