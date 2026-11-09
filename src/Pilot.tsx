@@ -22,7 +22,21 @@ const group:React.CSSProperties={display:"grid",gridTemplateColumns:"repeat(auto
 const label:React.CSSProperties={display:"grid",gap:6,fontSize:13,fontWeight:600};
 async function api<T>(path:string,bearer:string,options:RequestInit={}):Promise<T>{
  const res=await fetch(endpoint+path,{...options,headers:{apikey,Authorization:"Bearer "+bearer,"Content-Type":"application/json",...options.headers}});
- if(!res.ok){const msg=await res.text();throw new Error("请求未成功（"+res.status+"） "+msg.slice(0,220));}
+ if(!res.ok){
+   let details:{error_code?:string;code?:number;msg?:string;message?:string}={};
+   try{details=await res.json() as typeof details;}catch{ /* do not expose raw backend responses */ }
+   const code=details.error_code||"";
+   const description=details.msg||details.message||"";
+   if(res.status===429||code==="over_email_send_rate_limit"){
+     const wait=description.match(/after\\s+(\\d+)\\s+seconds?/i)?.[1];
+     throw new Error("验证码邮件发送太频繁。"+(wait?"请在"+wait+"秒后再试。":"请稍后再试。")+"如果已经注册，请勿重复注册；先到邮箱查找验证邮件。");
+   }
+   if(code==="email_not_confirmed")throw new Error("邮箱尚未验证。请在邮箱收件箱或垃圾邮件中找到确认邮件，点击链接后返回登录。");
+   if(code==="invalid_credentials"||code==="invalid_grant")throw new Error("账号或密码不正确。请确认输入信息，或联系工作人员协助。");
+   if(code==="user_already_exists"||code==="email_exists")throw new Error("该邮箱可能已经注册。请切换到登录，不要重复创建账号。");
+   if(res.status===400&&path.includes("/auth/v1/signup"))throw new Error("注册未完成。请检查邮箱与密码；如已收到验证邮件，请先完成验证后登录。");
+   throw new Error("操作暂时未成功（"+res.status+"）。请稍后重试或联系工作人员。");
+  }
  if(res.status===204)return null as T;
  const body=await res.text();return body?JSON.parse(body) as T:null as T;
 }
@@ -161,15 +175,15 @@ export default function Pilot(){
   {notice&&<div role="status" style={{...box,borderColor:"#9acbbc",color:"#166f65"}}>{notice}</div>}
   {!enabled?<section style={box}>尚未检测到 CRM 数据库配置。请检查站点部署环境变量。</section>:
    !profile?<section style={{...box,maxWidth:500,margin:"25px auto",padding:30}}>
-    <h2 style={{marginTop:0}}>{signup?"注册账号":"账号登录"}</h2><p style={{color:"#607989"}}>{signup?"客户可以直接注册；后台开放免邮箱验证后可立即登录。合作伙伴由管理员统一创建账号。":"请登录以查看您的专属服务信息。"}</p>
+    <h2 style={{marginTop:0}}>{signup?"注册账号":"账号登录"}</h2><p style={{color:"#607989"}}>{signup?"客户无需人工审核；目前系统仍要求邮箱确认，完成后即可登录。合作伙伴账号由管理员统一创建。":"请登录以查看您的专属服务信息。"}</p>
     <form onSubmit={signup?register:login} style={{display:"grid",gap:14}}>
      
      <label style={label}>电子邮箱<input style={inp} type="email" required autoComplete="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="example@email.com"/></label>
      <label style={label}>密码（至少8位）<input style={inp} type="password" minLength={8} required autoComplete={signup?"new-password":"current-password"} value={password} onChange={e=>setPassword(e.target.value)}/></label>
      
-     <button type="submit" style={btn} disabled={busy}>{busy?"正在处理…":signup?"注册并进入健康中心":"登录"}</button>
+     <button type="submit" style={btn} disabled={busy}>{busy?"正在处理…":signup?"注册个人账号":"登录"}</button>
     </form><button type="button" style={{border:0,background:"none",color:"#0b7f79",marginTop:16,cursor:"pointer"}} onClick={()=>{setSignup(!signup);setError("");}}>{signup?"已有账号？登录":"注册账号 →"}</button>
-    <p style={{fontSize:12,color:"#70828a",marginTop:22}}>注册后即可使用个人中心（后台尚未关闭验证时仍须邮件确认）；医疗档案须先由管理员核对身份并绑定。</p>
+    <p style={{fontSize:12,color:"#70828a",marginTop:22}}>邮箱确认后可直接登录个人中心，无需人工审核；医疗档案须由工作人员核对身份并绑定后才能查看。</p>
    </section>:
    <>
    <div style={{...box,background:"#ecf6f4"}}><strong>账户权限：</strong>{role==="admin"?"管理全部客户进度、代理分润和医疗档案。":role==="agent"?"仅查看本人报备或分配的客户服务节点及本人分润，不可查看病历、内部成本。":"仅查看与本人账号绑定的服务进度、医疗报告及已确认的健康建议。"}
