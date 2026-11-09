@@ -45,6 +45,7 @@ export default function Pilot(){
  const [token,setToken]=useState("");const [uid,setUid]=useState("");
  const [email,setEmail]=useState("");const [password,setPassword]=useState("");
  const [signup,setSignup]=useState(false);
+ const [pendingVerificationEmail,setPendingVerificationEmail]=useState("");
  const [agentCreateEmail,setAgentCreateEmail]=useState("");
  const [agentCreateName,setAgentCreateName]=useState("");
  const [agentCredentials,setAgentCredentials]=useState<{email:string;name:string;password:string}|null>(null);
@@ -82,7 +83,7 @@ export default function Pilot(){
   try{const auth=await api<AuthReply>("/auth/v1/token?grant_type=password",apikey,{method:"POST",body:JSON.stringify({email,password})});await load(auth.access_token,auth.user.id);sessionStorage.setItem("lh_seed_refresh",auth.refresh_token);setPassword("");}
   catch(err){setError(String(err instanceof Error?err.message:err));}finally{setBusy(false);}
  }
- async function register(e:FormEvent){e.preventDefault();setBusy(true);setError("");setNotice("");
+ async function register(e:FormEvent){e.preventDefault();setBusy(true);setError("");setNotice("");setPendingVerificationEmail("");
   try{
    const a=await api<AuthReply & {user?:{id:string}} >("/auth/v1/signup",apikey,{method:"POST",body:JSON.stringify({email,password,data:{account_type:"patient"}})});
    setSignup(false);
@@ -91,7 +92,7 @@ export default function Pilot(){
      if(a.refresh_token)sessionStorage.setItem("lh_seed_refresh",a.refresh_token);
      setNotice("注册成功，已进入个人健康中心。");
    }else{
-     setNotice("注册资料已提交。当前后台仍要求邮箱验证，请先完成邮件确认后登录；管理员无需审核。");
+     setPendingVerificationEmail(email.trim());
    }
    setPassword("");
   }
@@ -175,6 +176,19 @@ export default function Pilot(){
   {notice&&<div role="status" style={{...box,borderColor:"#9acbbc",color:"#166f65"}}>{notice}</div>}
   {!enabled?<section style={box}>尚未检测到 CRM 数据库配置。请检查站点部署环境变量。</section>:
    !profile?<section style={{...box,maxWidth:500,margin:"25px auto",padding:30}}>
+    {pendingVerificationEmail?<div role="status" aria-live="polite" style={{textAlign:"left"}}>
+      <div style={{width:52,height:52,borderRadius:"50%",background:"#e7f6ee",color:"#187d63",fontSize:28,display:"grid",placeItems:"center",marginBottom:16}}>✓</div>
+      <h2 style={{margin:"0 0 10px",color:"#123b5b",fontSize:24}}>注册申请已提交，请确认邮箱</h2>
+      <p style={{color:"#526e7a",lineHeight:1.8}}>我们已为以下邮箱提交注册申请。<strong>完成邮件验证后，才能登录健康服务中心。</strong> 无需管理员审核。</p>
+      <div style={{background:"#edf7f5",border:"1px solid #c7e4dd",borderRadius:12,padding:14,overflowWrap:"anywhere",margin:"18px 0"}}><span style={{fontSize:12,color:"#69838b"}}>注册邮箱</span><div style={{fontSize:17,fontWeight:700,color:"#123b5b"}}>{pendingVerificationEmail}</div></div>
+      <ol style={{lineHeight:2,paddingLeft:24,color:"#294f62",margin:"14px 0 20px"}}>
+        <li>打开上面的注册邮箱，查看<strong>收件箱或垃圾邮件</strong>。</li>
+        <li>找到 Supabase Auth 发来的验证邮件，点击 <strong>Confirm email address</strong>。</li>
+        <li>验证完成后返回本网站，使用邮箱和密码登录。</li>
+      </ol>
+      <p style={{fontSize:12,color:"#6c818a",lineHeight:1.8}}>若暂时没有邮件，请先检查垃圾邮件或稍后再查看。不要反复注册，以免触发邮件发送限制。</p>
+      <button type="button" style={{...btn,width:"100%",marginTop:12}} onClick={()=>{setPendingVerificationEmail("");setSignup(false);setError("");setNotice("");}}>我已验证邮箱，返回登录</button>
+    </div>:<>
     <h2 style={{marginTop:0}}>{signup?"注册账号":"账号登录"}</h2><p style={{color:"#607989"}}>{signup?"客户无需人工审核；目前系统仍要求邮箱确认，完成后即可登录。合作伙伴账号由管理员统一创建。":"请登录以查看您的专属服务信息。"}</p>
     <form onSubmit={signup?register:login} style={{display:"grid",gap:14}}>
      
@@ -184,6 +198,7 @@ export default function Pilot(){
      <button type="submit" style={btn} disabled={busy}>{busy?"正在处理…":signup?"注册个人账号":"登录"}</button>
     </form><button type="button" style={{border:0,background:"none",color:"#0b7f79",marginTop:16,cursor:"pointer"}} onClick={()=>{setSignup(!signup);setError("");}}>{signup?"已有账号？登录":"注册账号 →"}</button>
     <p style={{fontSize:12,color:"#70828a",marginTop:22}}>邮箱确认后可直接登录个人中心，无需人工审核；医疗档案须由工作人员核对身份并绑定后才能查看。</p>
+   </>}
    </section>:
    <>
    <div style={{...box,background:"#ecf6f4"}}><strong>账户权限：</strong>{role==="admin"?"管理全部客户进度、代理分润和医疗档案。":role==="agent"?"仅查看本人报备或分配的客户服务节点及本人分润，不可查看病历、内部成本。":"仅查看与本人账号绑定的服务进度、医疗报告及已确认的健康建议。"}
